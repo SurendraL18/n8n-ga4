@@ -1,0 +1,42 @@
+name: GA4 Daily Report to Telegram
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * *'  # Runs every day at 9 AM IST (3:30 UTC)
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install google-analytics-data
+
+      - name: Decode and save credentials
+        run: |
+          mkdir -p scripts/creds
+          echo "$SAMURAIDOORS_CREDS_B64" | base64 -d > scripts/creds/samuraidoors.json
+          echo "$CITYCAT_CREDS_B64" | base64 -d > scripts/creds/citycat.json
+        env:
+          SAMURAIDOORS_CREDS_B64: ${{ secrets.SAMURAIDOORS_CREDS_B64 }}
+          CITYCAT_CREDS_B64: ${{ secrets.CITYCAT_CREDS_B64 }}
+
+      - name: Run Python report
+        run: python scripts/analytics_report.py
+
+      - name: Send to Telegram
+        run: |
+          MESSAGE=$(python scripts/analytics_report.py)
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="$MESSAGE"
